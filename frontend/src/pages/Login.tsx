@@ -11,10 +11,10 @@ export default function Login() {
           <span className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet text-2xl font-bold text-white">
             ◈
           </span>
-          <h1 className="text-2xl font-semibold text-slate-100">P2P AgentOps</h1>
+          <h1 className="text-2xl font-semibold text-slate-100">AgentOps</h1>
           <p className="mt-1.5 text-[13px] text-slate-400">
-            Enterprise agentic Procure-to-Pay. Ten specialised agents propose; qualified people decide;
-            every decision is audited.
+            Enterprise agentic Procure-to-Pay and Strategic Procurement. Sixteen specialised agents
+            across two suites propose; qualified people decide; every decision is audited.
           </p>
         </div>
 

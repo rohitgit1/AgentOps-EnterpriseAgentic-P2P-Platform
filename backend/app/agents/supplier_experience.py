@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..enums import ActionKind, AutonomyLevel, InvoiceStatus, Role, WorkflowStage
 from ..models import ExceptionCase, Invoice, Payment, Supplier, SupplierMessage
 from ..skills import supplier_lookup
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 INTENTS = {
     "invoice_status": ["status", "where is", "received", "processing", "progress", "stuck"],
@@ -57,6 +57,22 @@ class SupplierExperienceAgent(BaseAgent):
     default_autonomy = AutonomyLevel.HUMAN_APPROVAL
     default_confidence_threshold = 0.90
     allowed_actions = [ActionKind.SEND_SUPPLIER_MESSAGE, ActionKind.NO_OP]
+
+    inputs = [
+        IOSpec("message_id", "The inbound supplier enquiry to answer.", kind="data", required=True),
+        IOSpec("invoice & payment ledger", "The system-of-record facts the reply may cite.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Intent classification", "invoice_status / payment_date / missing_information / "
+                                        "banking_verification / po_details / dispute.",
+               kind="record"),
+        IOSpec("Drafted reply", "Reply grounded only in retrieved records — never sent unreleased.",
+               kind="record"),
+        IOSpec("Checkpoint", "Release the reply to the supplier — a human sends it.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         message = db.get(SupplierMessage, context.get("message_id", ""))

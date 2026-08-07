@@ -439,12 +439,17 @@ def agent_config_out(config: AgentConfig, descriptor: dict | None = None) -> dic
     }
     if descriptor:
         data.update({
+            "suite": descriptor.get("suite", "p2p"),
             "role": descriptor["role"],
             "mission": descriptor["mission"],
             "goals": descriptor["goals"],
             "tools": descriptor["tools"],
             "skills": descriptor["skills"],
             "prompt": descriptor["prompt"],
+            "inputs": descriptor.get("inputs", []),
+            "outputs": descriptor.get("outputs", []),
+            "accepts_attachments": descriptor.get("accepts_attachments", False),
+            "produces_artifacts": descriptor.get("produces_artifacts", False),
         })
     return data
 

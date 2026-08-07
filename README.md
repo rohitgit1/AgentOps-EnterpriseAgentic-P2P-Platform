@@ -1,11 +1,15 @@
-# P2P AgentOps
+# AgentOps — Enterprise Agentic P2P & Procurement
 
-**Enterprise Agentic Procure-to-Pay Operations Platform**
+**Two agent suites, one human-in-the-loop control plane**
 
-Ten specialised AI agents run the accounts-payable shop end to end — intake,
-matching, exceptions, approvals, supplier communication, payments, risk and SLA
-forecasting. Every one of them **proposes**; a qualified human **decides**; the
-decision is written to an immutable, hash-chained audit trail.
+| Suite | Agents | Covers |
+|---|---|---|
+| **P2P AgentOps** | 10 | Operational accounts payable — intake, matching, exceptions, approvals, supplier comms, payments, risk, SLA |
+| **Procurement AgentOps** | 6 | Strategic sourcing, spend analytics, supplier risk & compliance, contract lifecycle, tail spend, executive command centre |
+
+Sixteen specialised agents over twenty-eight shared skills. Every one of them
+**proposes**; a qualified human **decides**; the decision is written to an
+immutable, hash-chained audit trail.
 
 Runs entirely on your laptop with no cloud account, no API key and no database
 server. One command, one port, a seeded demo dataset that tells a story.
@@ -18,6 +22,8 @@ server. One command, one port, a seeded demo dataset that tells a story.
 
 📘 **[RUNNING.md](RUNNING.md)** — prerequisites, every launch path, configuration
 reference and troubleshooting.
+📙 **[docs/PROCUREMENT.md](docs/PROCUREMENT.md)** — the Procurement suite, and the
+attachment → agent → deliverable pipeline.
 📗 **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** — a 15-minute client walkthrough.
 📕 **[docs/HITL.md](docs/HITL.md)** — how the human-in-the-loop guarantees are enforced.
 
@@ -39,7 +45,7 @@ Concretely:
 | Agents return `ProposedAction`s, never mutations | `backend/app/agents/base.py` | No code path lets an agent write business data |
 | Explicit executor allow-list | `backend/app/services/hitl.py` | An action with no registered handler simply cannot happen |
 | Seven-gate policy engine | `backend/app/services/policy.py` | Default-deny: auto-execution needs *every* gate to open |
-| Irreversible-action rule | `backend/app/enums.py` | ERP posting, payment release, supplier messages and vendor-master edits **always** stop for a human — at any autonomy level |
+| Irreversible-action rule | `backend/app/enums.py` | ERP posting, payment release, supplier messages, vendor-master edits, RFP issue, sourcing award, contract signature and executive publication **always** stop for a human — at any autonomy level |
 | Role authority ladder | `backend/app/api/deps.py` | A clerk cannot release a payment however hard they click |
 | Hash-chained audit log | `backend/app/services/audit.py` | Every record hashes the previous one; retroactive edits are detectable |
 
@@ -57,12 +63,48 @@ Intake → Extraction Review → Validation → 3-Way Match → Exception
                      a human decision is required at each
 ```
 
-Outward-facing actions (supplier messages, reminders, escalations) are drafted
-by agents and released by people — a supplier never receives unreviewed text.
+In the Procurement suite the same pattern applies to sourcing and contracting:
+
+```
+Requirements → RFP package → Issue to suppliers → Bids → Scorecard → Award
+      ▲             ▲               ▲                        ▲         ▲
+      └─────────────┴───────────────┴────────────────────────┴─────────┘
+                    a human decision is required at each
+```
+
+Outward-facing actions (supplier messages, reminders, escalations, RFPs,
+contracts, executive briefs) are drafted by agents and released by people — a
+supplier never receives unreviewed text, and no document leaves as final.
 
 ---
 
-## The ten agents
+## Documents in, documents out
+
+Procurement agents read the attachments you give them and hand back files you can
+download. The **Agent I/O Catalogue** screen renders the declared contract for
+every agent in both suites — what it consumes, what it produces, in what format.
+
+```
+attachment (input)  ──▶  agent  ──▶  deliverable (output, status=DRAFT)
+                                            │
+                                    linked to a checkpoint
+                                            │
+                            approved by a qualified human
+                                            ▼
+                                    status = RELEASED
+```
+
+A generated document is never final on creation. The guarantee that stops an
+agent writing to the ledger also stops it issuing a document: an RFP package, a
+contract draft or an executive brief stays a draft until a named person releases
+it. Seven sample attachments ship in the library so a demo runs immediately.
+
+CSV, TSV, JSON, Markdown and text are parsed into typed records. A PDF
+contributes only its embedded text layer — no OCR engine is bundled.
+
+## The sixteen agents
+
+### P2P AgentOps — operational accounts payable
 
 | # | Agent | Mission | Escalates to |
 |---|---|---|---|
@@ -76,6 +118,17 @@ by agents and released by people — a supplier never receives unreviewed text.
 | 8 | **Procurement Request** | Apply the spend-authority ladder (5k / 10k / above) | Procurement |
 | 9 | **Contract Intelligence** | Expired pricing, unauthorised charges, off-rate lines, missed volume discounts | Procurement |
 | 10 | **SLA Command Center** | Forecast breaches, rebalance queues, raise executive alerts | Controller |
+
+### Procurement AgentOps — strategic sourcing & category management
+
+| # | Agent | Mission | Escalates to |
+|---|---|---|---|
+| 1 | **Sourcing Event** | Requirements brief → RFP package → scored bids → award recommendation | Procurement |
+| 2 | **Spend Analytics** | Classify spend, normalise suppliers, measure compliance, price the savings levers | Procurement |
+| 3 | **Supplier Risk & Compliance** | Score financial, operational, compliance and ESG risk; recommend a disposition | Controller |
+| 4 | **Contract Lifecycle** | Author drafts, review third-party paper for missing and risky clauses, track renewals | Controller |
+| 5 | **Tail Spend** | Pareto-split the tail, cluster it, price consolidation, enforce catalog | Procurement |
+| 6 | **Procurement Command Center** | Roll the portfolio into six executive KPIs and draft the brief | CFO |
 
 Each implements the specified lifecycle — `plan() → execute() → observe() →
 reason() → escalate() → report()` — and each run persists its plan, every tool
@@ -136,15 +189,15 @@ be swapped for Kafka or Azure Event Hub without touching agent code.
 
 ```
 backend/app/
-  agents/      10 agents + base framework + orchestrator + registry
-  skills/      12 shared skills, each with a declared contract
-  services/    policy · hitl · audit · events · llm · erp · metrics
-  api/         auth · core · hitl · agents · analytics · admin
+  agents/      16 agents (2 suites) + base framework + orchestrator + registry
+  skills/      28 shared skills, each with a declared contract
+  services/    policy · hitl · audit · events · llm · erp · metrics · artifacts
+  api/         auth · core · hitl · agents · procurement · analytics · admin
   models.py    Invoice PO Receipt Supplier Contract Payment Exception
                Approval AuditLog AgentExecution WorkflowEvent SLARisk
                HumanTask AgentConfig PolicyRule …
   seed.py      the demo dataset
-frontend/src/  React SPA — 12 screens
+frontend/src/  React SPA — 20 screens
 skills/        generated SKILL.md contracts (see scripts/generate_skill_docs.py)
 docs/          ARCHITECTURE.md · DEMO_SCRIPT.md · HITL.md
 ```
@@ -241,6 +294,14 @@ built around these scenarios.
 | **Skills Library** | The 12 shared skills and their contracts |
 | **Audit Trail** | Hash-chain verification and CSV export |
 | **Governance** | Policy-as-code editing and the master HITL switch |
+| **Agent I/O Catalogue** | Every agent's declared inputs and outputs, with the files each has produced |
+| **Artifact Library** | Every file in and out, with upload, preview, download and release state |
+| **Procurement Command Center** | Six executive KPIs, supplier risk heatmap, savings by lever |
+| **Sourcing Events** | RFP pipeline, bid scorecards, award decisions |
+| **Spend & Savings** | Classified spend by category and the savings pipeline |
+| **Supplier Risk** | Four-domain scorecard and disposition decisions |
+| **Contracts** | Drafts, clause reviews, obligations and renewals |
+| **Tail Spend** | Head/tail split, consolidation clusters and catalog enforcement |
 
 ---
 
@@ -255,6 +316,13 @@ POST /api/agents/{key}/run          GET  /api/dashboard
 POST /api/orchestrator/sweep        GET  /api/agents/status
 POST /api/hitl/tasks/{id}/decide    GET  /api/audit/verify
 POST /api/approvals/{id}/decide     GET  /api/audit/export
+
+# Procurement AgentOps
+POST /api/artifacts/upload          GET  /api/agent-io
+GET  /api/artifacts/{id}/download   GET  /api/procurement/dashboard
+POST /api/sourcing-events           GET  /api/spend
+GET  /api/savings                   GET  /api/risk-assessments
+GET  /api/contract-drafts           GET  /api/tail-spend
 ```
 
 `POST /api/hitl/tasks/{id}/decide` is the only route through which an agent's
@@ -268,8 +336,10 @@ proposal can reach a system of record.
 .venv/bin/python -m pytest backend/tests -q
 ```
 
-Covers the policy gates, the irreversible-action rule, role authority, the
-audit hash chain, agent lifecycles and the end-to-end intake → payment path.
+49 tests covering the policy gates, the irreversible-action rule across every
+irreversible kind, role authority, dual approval, the audit hash chain, agent
+lifecycles, the end-to-end intake → payment path, attachment parsing, and the
+attachment → agent → deliverable → release flow.
 
 ---
 

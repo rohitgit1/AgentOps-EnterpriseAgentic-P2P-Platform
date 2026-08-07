@@ -80,3 +80,10 @@ export const SLA_STYLES: Record<string, string> = {
   breached: 'border-rose/45 bg-rose/15 text-rose',
   met: 'border-mint/35 bg-mint/10 text-mint',
 }
+
+export const bytes = (value?: number | null) => {
+  if (!value && value !== 0) return '—'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
+}

@@ -20,7 +20,7 @@ from ..enums import (
 from ..models import Invoice, PurchaseOrder, Receipt
 from ..services.policy import PolicyStore
 from ..skills import exception_resolution, po_lookup, variance_analysis
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class ThreeWayMatchAgent(BaseAgent):
@@ -45,6 +45,23 @@ class ThreeWayMatchAgent(BaseAgent):
         ActionKind.REQUEST_GOODS_RECEIPT,
         ActionKind.HOLD_INVOICE,
     ]
+
+    inputs = [
+        IOSpec("invoice_id", "The invoice to match.", kind="data", required=True),
+        IOSpec("PO & goods receipt", "Fetched from the ERP connector — no attachment needed.",
+               kind="data", required=False),
+        IOSpec("tolerance policy", "Amount and quantity tolerances, read from policy-as-code.",
+               kind="data", required=False, example="amount 3% / quantity 2% / 50 USD floor"),
+    ]
+    outputs = [
+        IOSpec("Line-level variance analysis", "Per-line price and quantity variance in percent and dollars.",
+               kind="record"),
+        IOSpec("Match result", "matched / within_tolerance / price_variance / missing_receipt / no_match.",
+               kind="record"),
+        IOSpec("Checkpoint", "Clear the match or open an exception — AP Clerk decides.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         invoice = db.get(Invoice, context.get("invoice_id", ""))

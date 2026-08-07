@@ -158,6 +158,11 @@ def seed_all(db: Session, *, force: bool = False) -> dict:
     _seed_supplier_messages(db, suppliers)
     _seed_purchase_requests(db, suppliers, users)
 
+    # Layer the strategic procurement dataset on top of the operational one.
+    from .seed_procurement import seed_procurement
+
+    counts.update(seed_procurement(db, force=True))
+
     record_event(
         db,
         event_type=EventType.SYSTEM,

@@ -19,8 +19,8 @@ DATA_DIR.mkdir(exist_ok=True)
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="P2P_", extra="ignore")
 
-    app_name: str = "P2P AgentOps"
-    version: str = "1.0.0"
+    app_name: str = "AgentOps — P2P & Procurement"
+    version: str = "1.1.0"
     environment: str = "demo"
 
     # --- Persistence -----------------------------------------------------

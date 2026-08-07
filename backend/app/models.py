@@ -618,3 +618,193 @@ class PolicyRule(Base, TimestampMixin):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     editable: Mapped[bool] = mapped_column(Boolean, default=True)
     last_changed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+
+
+# ===========================================================================
+# Procurement AgentOps
+# ===========================================================================
+class Artifact(Base, TimestampMixin):
+    """A file that flows into or out of an agent.
+
+    One table for both directions, because the audit question is the same in
+    each: which agent touched which document, when, and who released it.
+
+    * ``direction="input"``  — an attachment a human uploaded for an agent to read.
+    * ``direction="output"`` — a deliverable an agent produced. It is born as a
+      DRAFT and only becomes ``released`` when a human approves the checkpoint
+      that owns it, so a generated document cannot reach a supplier unreviewed.
+    """
+
+    __tablename__ = "artifacts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    reference: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    direction: Mapped[str] = mapped_column(String(12), default="output", index=True)
+    kind: Mapped[str] = mapped_column(String(48), default="document")
+    title: Mapped[str] = mapped_column(String(255), default="")
+    filename: Mapped[str] = mapped_column(String(255), default="")
+    content_type: Mapped[str] = mapped_column(String(64), default="text/markdown")
+    content: Mapped[str] = mapped_column(Text, default="")
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    agent_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    execution_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    human_task_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    uploaded_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    released_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    meta: Mapped[dict | None] = mapped_column(JSON, default=dict)
+
+
+class SourcingEvent(Base, TimestampMixin):
+    __tablename__ = "sourcing_events"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    event_number: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    category: Mapped[str] = mapped_column(String(120), default="")
+    event_type: Mapped[str] = mapped_column(String(16), default="RFP")  # RFP | RFQ | RFI
+    budget_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    incumbent_spend_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    requirements: Mapped[str] = mapped_column(Text, default="")
+    compliance_rules: Mapped[list | None] = mapped_column(JSON, default=list)
+    weighting: Mapped[dict | None] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(32), default="draft", index=True)
+    owner_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"), nullable=True)
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    response_due: Mapped[Date | None] = mapped_column(Date, nullable=True)
+    awarded_supplier_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    awarded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    expected_savings_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    cycle_days: Mapped[float | None] = mapped_column(Float, nullable=True)
+    baseline_cycle_days: Mapped[float] = mapped_column(Float, default=56.0)
+
+    bids = relationship("SourcingBid", back_populates="event", cascade="all, delete-orphan")
+
+
+class SourcingBid(Base, TimestampMixin):
+    __tablename__ = "sourcing_bids"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    event_id: Mapped[str] = mapped_column(String(32), ForeignKey("sourcing_events.id"), index=True)
+    supplier_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("suppliers.id"), nullable=True)
+    supplier_name: Mapped[str] = mapped_column(String(255), default="")
+    bid_amount_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    lead_time_days: Mapped[int] = mapped_column(Integer, default=0)
+    technical_score: Mapped[float] = mapped_column(Float, default=0.0)
+    commercial_score: Mapped[float] = mapped_column(Float, default=0.0)
+    risk_score: Mapped[float] = mapped_column(Float, default=0.0)
+    total_score: Mapped[float] = mapped_column(Float, default=0.0)
+    compliance_flags: Mapped[list | None] = mapped_column(JSON, default=list)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="received")
+
+    event = relationship("SourcingEvent", back_populates="bids")
+
+
+class SpendTransaction(Base):
+    __tablename__ = "spend_transactions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    supplier_raw: Mapped[str] = mapped_column(String(255), default="")
+    supplier_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("suppliers.id"), nullable=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    amount_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    currency: Mapped[str] = mapped_column(String(8), default="USD")
+    transaction_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
+    cost_center: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    po_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    on_contract: Mapped[bool] = mapped_column(Boolean, default=False)
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    unspsc: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    classification_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    classified_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    maverick: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    tail_spend: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    source_artifact_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SavingsOpportunity(Base, TimestampMixin):
+    __tablename__ = "savings_opportunities"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    reference: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    lever: Mapped[str] = mapped_column(String(64), default="consolidation", index=True)
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    supplier_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    annual_spend_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    estimated_savings_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(24), default="identified", index=True)
+    identified_by_agent: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    approved_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+
+
+class RiskAssessment(Base, TimestampMixin):
+    """A point-in-time strategic supplier risk scorecard across four domains."""
+
+    __tablename__ = "risk_assessments"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    supplier_id: Mapped[str] = mapped_column(String(32), ForeignKey("suppliers.id"), index=True)
+    supplier_name: Mapped[str] = mapped_column(String(255), default="")
+    financial_risk: Mapped[float] = mapped_column(Float, default=0.0)
+    operational_risk: Mapped[float] = mapped_column(Float, default=0.0)
+    compliance_risk: Mapped[float] = mapped_column(Float, default=0.0)
+    esg_risk: Mapped[float] = mapped_column(Float, default=0.0)
+    overall_risk: Mapped[float] = mapped_column(Float, default=0.0)
+    risk_band: Mapped[str] = mapped_column(String(16), default="low", index=True)
+    findings: Mapped[list | None] = mapped_column(JSON, default=list)
+    recommended_disposition: Mapped[str] = mapped_column(String(24), default="approve")
+    applied_disposition: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    decided_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    spend_at_risk_usd: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class ContractDraft(Base, TimestampMixin):
+    __tablename__ = "contract_drafts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    reference: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    contract_type: Mapped[str] = mapped_column(String(24), default="MSA")  # MSA|SOW|NDA|Amendment
+    supplier_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("suppliers.id"), nullable=True)
+    supplier_name: Mapped[str] = mapped_column(String(255), default="")
+    value_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    term_months: Mapped[int] = mapped_column(Integer, default=12)
+    body: Mapped[str] = mapped_column(Text, default="")
+    clause_findings: Mapped[list | None] = mapped_column(JSON, default=list)
+    missing_clauses: Mapped[list | None] = mapped_column(JSON, default=list)
+    legal_risk_score: Mapped[float] = mapped_column(Float, default=0.0)
+    obligations: Mapped[list | None] = mapped_column(JSON, default=list)
+    renewal_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="drafted", index=True)
+    issued_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    source_artifact_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class TailSpendFinding(Base, TimestampMixin):
+    __tablename__ = "tail_spend_findings"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    reference: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    finding_type: Mapped[str] = mapped_column(String(48), default="off_contract", index=True)
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    supplier_names: Mapped[list | None] = mapped_column(JSON, default=list)
+    transaction_count: Mapped[int] = mapped_column(Integer, default=0)
+    spend_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    recommended_supplier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    consolidation_savings_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    recommendation: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(24), default="open", index=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(160), nullable=True)

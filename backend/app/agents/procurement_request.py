@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..enums import ActionKind, AutonomyLevel, RiskLevel, Role, WorkflowStage
 from ..models import Contract, PurchaseRequest, Supplier
 from ..services.policy import PolicyStore
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class ProcurementRequestAgent(BaseAgent):
@@ -32,6 +32,20 @@ class ProcurementRequestAgent(BaseAgent):
     default_autonomy = AutonomyLevel.HUMAN_APPROVAL
     default_confidence_threshold = 0.90
     allowed_actions = [ActionKind.APPROVE_PURCHASE_REQUEST, ActionKind.CREATE_PURCHASE_REQUEST]
+
+    inputs = [
+        IOSpec("request_id", "The purchase request to triage.", kind="data", required=True),
+        IOSpec("spend policy", "The authority ladder, read from policy-as-code.",
+               kind="data", required=False, example="under 5k / under 10k / above 10k"),
+    ]
+    outputs = [
+        IOSpec("Routing decision", "The policy band and the authority the request routes to.",
+               kind="record"),
+        IOSpec("Contract-cover note", "Whether the nominated supplier is on contract.", kind="record"),
+        IOSpec("Checkpoint", "Approve the purchase request at the applicable authority.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         request = db.get(PurchaseRequest, context.get("request_id", ""))

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..enums import ActionKind, AutonomyLevel, RiskLevel, Role, WorkflowStage
 from ..models import Contract, Invoice, PurchaseOrder, Supplier
 from ..skills import contract_parsing
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class ContractIntelligenceAgent(BaseAgent):
@@ -32,6 +32,23 @@ class ContractIntelligenceAgent(BaseAgent):
     default_confidence_threshold = 0.90
     allowed_actions = [ActionKind.FLAG_CONTRACT_BREACH, ActionKind.CREATE_EXCEPTION,
                        ActionKind.SEND_SUPPLIER_MESSAGE]
+
+    inputs = [
+        IOSpec("invoice_id", "The invoice to test against its governing contract.",
+               kind="data", required=True),
+        IOSpec("contract rate card", "Agreed rates, allowed charges and volume tiers.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Contract findings", "Expired pricing, incorrect rates, unauthorised charges, "
+                                    "missed discounts — each with its dollar impact.",
+               kind="record"),
+        IOSpec("Recoverable amount", "Total value recoverable by short-paying to contract.",
+               kind="record"),
+        IOSpec("Checkpoint", "Flag the breach / notify the supplier — Procurement decides.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         invoice = db.get(Invoice, context.get("invoice_id", ""))

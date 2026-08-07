@@ -22,7 +22,7 @@ from ..enums import (
 from ..models import Invoice, Payment, Supplier
 from ..services.policy import PolicyStore
 from ..skills import payment_prioritization, vendor_risk
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class PaymentReadinessAgent(BaseAgent):
@@ -42,6 +42,24 @@ class PaymentReadinessAgent(BaseAgent):
     default_autonomy = AutonomyLevel.HUMAN_APPROVAL
     default_confidence_threshold = 0.92
     allowed_actions = [ActionKind.SCHEDULE_PAYMENT, ActionKind.RELEASE_PAYMENT, ActionKind.HOLD_INVOICE]
+
+    inputs = [
+        IOSpec("approved invoices", "Approved, ERP-posted, unpaid invoices — read automatically.",
+               kind="data", required=False),
+        IOSpec("invoice_id", "Restrict the run to one invoice.", kind="data", required=False),
+        IOSpec("supplier terms & risk", "Discount terms, tier and compliance screening.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Payment run ranking", "priority_score = due_risk + supplier_tier + discount_value + sla_risk, "
+                                      "with each component shown.",
+               kind="record"),
+        IOSpec("Discount capture", "Available early-pay discount and its deadline per invoice.",
+               kind="record"),
+        IOSpec("Checkpoint", "Post to ERP / schedule payment / release payment / hold on compliance.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         if context.get("invoice_id"):

@@ -19,7 +19,7 @@ from ..enums import (
 from ..models import Invoice, Supplier
 from ..services.policy import PolicyStore
 from ..skills import duplicate_detection, invoice_extraction, po_lookup, supplier_lookup, tax_validation
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class InvoiceIntakeAgent(BaseAgent):
@@ -44,6 +44,27 @@ class InvoiceIntakeAgent(BaseAgent):
         ActionKind.CREATE_EXCEPTION,
         ActionKind.HOLD_INVOICE,
     ]
+
+    inputs = [
+        IOSpec("invoice_document", "Supplier invoice as received — PDF text layer, scanned image, "
+                                   "email body or EDI 810 payload.",
+               kind="attachment", formats=["pdf", "txt", "md", "csv", "json"], required=False,
+               example="VIS-2026-08841.pdf"),
+        IOSpec("invoice_id", "An invoice already in the queue to re-analyse.",
+               kind="data", required=True, example="invoice_id=<uuid>"),
+    ]
+    outputs = [
+        IOSpec("Extracted fields", "supplier, invoice_number, dates, subtotal, tax, total, currency, "
+                                   "with per-field confidence.",
+               kind="record", example='{"invoice_number": "VIS-2026-08841", "total_amount": 36588.94}'),
+        IOSpec("Resolution result", "Matched supplier and purchase order, with match scores.",
+               kind="record"),
+        IOSpec("Duplicate verdict", "Similarity score against invoice history and the signals behind it.",
+               kind="record", example='{"is_duplicate": true, "score": 0.97}'),
+        IOSpec("Checkpoint", "Confirm fields / open exception / hold — AP Clerk decides.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         invoice = db.get(Invoice, context.get("invoice_id", ""))
