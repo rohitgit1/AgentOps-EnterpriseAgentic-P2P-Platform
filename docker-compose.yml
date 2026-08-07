@@ -1,0 +1,30 @@
+services:
+  p2p-agentops:
+    build: .
+    container_name: p2p-agentops
+    ports:
+      - "8000:8000"
+    environment:
+      # Deterministic reasoning, human-in-the-loop enforced — demo defaults.
+      P2P_LLM_PROVIDER: deterministic
+      P2P_ENFORCE_HUMAN_IN_THE_LOOP: "true"
+      P2P_SEED_ON_STARTUP: "true"
+      # Uncomment to run against the bundled PostgreSQL instead of SQLite:
+      # P2P_DATABASE_URL: postgresql+psycopg://p2p:p2p@postgres:5432/p2p
+    volumes:
+      - p2p-data:/app/backend/data
+    restart: unless-stopped
+
+  # Optional: enable for a shared, multi-user demo.
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: p2p
+  #     POSTGRES_PASSWORD: p2p
+  #     POSTGRES_DB: p2p
+  #   volumes:
+  #     - p2p-pg:/var/lib/postgresql/data
+
+volumes:
+  p2p-data:
+  # p2p-pg:
