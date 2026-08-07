@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useApi, useSession } from '../store'
 import { api } from '../lib/api'
@@ -27,11 +27,18 @@ const NAV = [
 ]
 
 export default function Shell({ children }: { children: ReactNode }) {
-  const { user, personas, signIn, connected, events, toast, clearToast, refresh, notify } = useSession()
+  const { user, personas, signIn, signOut, connected, events, toast, clearToast, refresh, notify } = useSession()
   const { data: summary } = useApi<{ pending_for_me: number; pending_total: number }>('/hitl/summary')
   const [switching, setSwitching] = useState(false)
   const [busy, setBusy] = useState(false)
   const location = useLocation()
+
+  useEffect(() => {
+    if (!switching) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSwitching(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [switching])
 
   async function runSweep() {
     setBusy(true)
@@ -103,7 +110,16 @@ export default function Shell({ children }: { children: ReactNode }) {
 
       {/* ---------------- Main ---------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-ink-800 bg-ink-900/50 px-4 py-2.5 backdrop-blur">
+        {/*
+          `relative z-40` is load-bearing, not decoration. `backdrop-blur` puts a
+          backdrop-filter on this header, which creates a stacking context — so
+          the persona dropdown's own z-index is confined inside it. While the
+          header stayed non-positioned, its whole subtree painted in the block
+          layer and <main>, a later sibling, painted straight over the open menu.
+          Positioning the header lifts the entire subtree above main and the
+          activity rail. Overlay order: header 40 < Drawer 50 < Toast 60.
+        */}
+        <header className="relative z-40 flex items-center gap-3 border-b border-ink-800 bg-ink-900/50 px-4 py-2.5 backdrop-blur">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-slate-100">
               {NAV.flatMap((g) => g.items).find((i) => i.to === location.pathname)?.label ?? 'P2P AgentOps'}
@@ -142,29 +158,46 @@ export default function Shell({ children }: { children: ReactNode }) {
             {switching && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setSwitching(false)} />
-                <div className="absolute right-0 top-full z-50 mt-1.5 w-[330px] rounded-xl border border-ink-700 bg-ink-900 p-1.5 shadow-lift">
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-1.5 max-h-[min(560px,calc(100vh-4rem))] w-[330px]
+                             overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-1.5 shadow-lift scroll-thin"
+                >
                   <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                     Switch persona — authority changes with the role
                   </p>
                   {personas.map((p) => (
                     <button
                       key={p.id}
+                      role="menuitem"
                       onClick={() => { signIn(p); setSwitching(false) }}
                       className={`flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-ink-850 ${
-                        p.id === user?.id ? 'bg-ink-850' : ''
+                        p.id === user?.id ? 'bg-ink-850 ring-1 ring-inset ring-accent/30' : ''
                       }`}
                     >
                       <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md bg-ink-700 text-[10.5px] font-bold text-slate-300">
                         {p.initials}
                       </span>
-                      <span className="min-w-0">
+                      <span className="min-w-0 flex-1">
                         <span className="block truncate text-[12.5px] font-medium text-slate-200">
                           {p.full_name} {p.out_of_office && <span className="text-amber">· OOO</span>}
                         </span>
                         <span className="block truncate text-[11px] text-slate-500">{p.blurb ?? p.title}</span>
                       </span>
+                      {p.id === user?.id && <span className="mt-1 shrink-0 text-[11px] text-accent-soft">✓</span>}
                     </button>
                   ))}
+
+                  <div className="mt-1.5 border-t border-ink-800 pt-1.5">
+                    <button
+                      role="menuitem"
+                      onClick={() => { setSwitching(false); signOut() }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-slate-400 hover:bg-ink-850 hover:text-rose"
+                    >
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-ink-800 text-[12px]">⏻</span>
+                      <span className="text-[12.5px] font-medium">Sign out</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
