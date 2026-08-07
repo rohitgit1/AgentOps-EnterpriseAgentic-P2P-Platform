@@ -138,6 +138,12 @@ it and the `P2P_DATABASE_URL` line for a shared, multi-user demo.
    panel, then the **Agent Reasoning** and **Policy & Audit** tabs.
 5. **Approve one.** Return to **Invoices** and watch the invoice advance a stage.
 6. **Switch persona** (top right) to see how authority changes what you can act on.
+7. **Under the Hood → Agents Academy** when someone asks *"what does this agent
+   actually do?"* — input, output, the steps it runs, a worked example against
+   the seeded data, and who has to approve each action.
+8. **Under the Hood → Data Model** when someone asks *"what's behind it?"* — the
+   live schema grouped by domain, with row counts read from the database at the
+   moment you open the page.
 
 `docs/DEMO_SCRIPT.md` is a 15-minute walkthrough built around the seeded
 scenarios. `docs/HITL.md` explains exactly how the guarantees are enforced.
@@ -270,15 +276,16 @@ change — the models are backend-agnostic.
 # API is alive
 curl http://localhost:8000/api/health
 
-# Test suite — 25 tests over the policy gates, the irreversible-action rule,
-# role authority, the audit hash chain and the full intake-to-payment path
+# Test suite — 57 tests over the policy gates, the irreversible-action rule,
+# role authority, the audit hash chain, the attachment → deliverable pipeline
+# and the full intake-to-payment path
 cd backend && ../.venv/bin/python -m pytest tests -q
 
 # The audit chain verifies from genesis
 curl -H "X-User-Id: <any-persona-id>" http://localhost:8000/api/audit/verify
 ```
 
-Expected: `25 passed`, and `"valid": true` from the audit chain.
+Expected: `57 passed`, and `"valid": true` from the audit chain.
 
 Interactive API reference: **<http://localhost:8000/api/docs>**
 

@@ -302,6 +302,8 @@ built around these scenarios.
 | **Supplier Risk** | Four-domain scorecard and disposition decisions |
 | **Contracts** | Drafts, clause reviews, obligations and renewals |
 | **Tail Spend** | Head/tail split, consolidation clusters and catalog enforcement |
+| **Agents Academy** | How every agent works — its input and output, the steps it runs, a worked example, and who must approve each action |
+| **Data Model** | The live backend schema, introspected from the running database: tables by domain, columns, keys, foreign keys and row counts |
 
 ---
 
@@ -323,6 +325,10 @@ GET  /api/artifacts/{id}/download   GET  /api/procurement/dashboard
 POST /api/sourcing-events           GET  /api/spend
 GET  /api/savings                   GET  /api/risk-assessments
 GET  /api/contract-drafts           GET  /api/tail-spend
+
+# Explainers — introspected live, never hand-maintained
+GET  /api/data-model                GET  /api/academy
+                                    GET  /api/academy/{agent_key}
 ```
 
 `POST /api/hitl/tasks/{id}/decide` is the only route through which an agent's
@@ -336,10 +342,12 @@ proposal can reach a system of record.
 .venv/bin/python -m pytest backend/tests -q
 ```
 
-49 tests covering the policy gates, the irreversible-action rule across every
+57 tests covering the policy gates, the irreversible-action rule across every
 irreversible kind, role authority, dual approval, the audit hash chain, agent
-lifecycles, the end-to-end intake → payment path, attachment parsing, and the
-attachment → agent → deliverable → release flow.
+lifecycles, the end-to-end intake → payment path, attachment parsing, the
+attachment → agent → deliverable → release flow, and the two explainer surfaces
+— including a drift guard that fails if a new table or a new agent ships
+undocumented.
 
 ---
 

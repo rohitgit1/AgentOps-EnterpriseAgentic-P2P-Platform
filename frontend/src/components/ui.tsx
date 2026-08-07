@@ -1,5 +1,54 @@
-import { ReactNode, useEffect } from 'react'
+import { Component, ErrorInfo, ReactNode, useEffect } from 'react'
 import { RISK_STYLES, confidencePct, titleCase } from '../lib/format'
+
+/**
+ * Stops one bad field from blanking the whole application.
+ *
+ * React unmounts the entire tree when a render throws, so a single missing
+ * value in an API payload used to leave a white screen with the failure only
+ * visible in the console. Wrapping the routed page turns that into a readable
+ * message with the app still usable around it.
+ */
+export class ErrorBoundary extends Component<
+  { children: ReactNode; resetKey?: string },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Screen failed to render:', error, info.componentStack)
+  }
+
+  componentDidUpdate(prev: { children: ReactNode; resetKey?: string }) {
+    // Navigating away from a broken screen must clear the error.
+    if (prev.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null })
+    }
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="panel border-rose/30 p-6">
+        <p className="text-[13px] font-semibold text-rose">This screen failed to render</p>
+        <p className="subtle mt-1.5 max-w-2xl">
+          The rest of the application is unaffected — nothing was written and no decision was
+          recorded. Move to another screen, or reload to try again.
+        </p>
+        <pre className="scroll-thin mt-3 max-h-40 overflow-auto rounded-lg border border-ink-700 bg-ink-950/70 p-3 font-mono text-[11px] text-slate-400">
+          {this.state.error.message}
+        </pre>
+        <button className="btn-ghost mt-3" onClick={() => this.setState({ error: null })}>
+          Try again
+        </button>
+      </div>
+    )
+  }
+}
 
 export function Panel({
   title, subtitle, actions, children, className = '', bodyClass = '',
