@@ -38,6 +38,11 @@ reasoning, thresholds, dependencies and a rebuild checklist — enough to
 reconstruct any agent without reading its source.
 ❋ **[skills/](skills/README.md)** — the 28 shared skills and their contracts.
 
+📊 **[docs/walkthrough/](docs/walkthrough/)** — a developer walkthrough as **PDF**
+(46 pages) and **PPTX** (47 slides), carrying 30 screenshots captured from the
+running application. Rebuild from a live capture with
+`./scripts/walkthrough/build.sh`.
+
 The agent and skill documents are generated from the live code
 (`scripts/generate_agent_specs.py`, `scripts/generate_skill_docs.py`) and a test
 fails if a committed file has drifted from the code it describes.
