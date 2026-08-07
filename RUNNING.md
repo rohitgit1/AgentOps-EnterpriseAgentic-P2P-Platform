@@ -276,7 +276,7 @@ change — the models are backend-agnostic.
 # API is alive
 curl http://localhost:8000/api/health
 
-# Test suite — 57 tests over the policy gates, the irreversible-action rule,
+# Test suite — 79 tests over the policy gates, the irreversible-action rule,
 # role authority, the audit hash chain, the attachment → deliverable pipeline
 # and the full intake-to-payment path
 cd backend && ../.venv/bin/python -m pytest tests -q
@@ -285,7 +285,7 @@ cd backend && ../.venv/bin/python -m pytest tests -q
 curl -H "X-User-Id: <any-persona-id>" http://localhost:8000/api/audit/verify
 ```
 
-Expected: `57 passed`, and `"valid": true` from the audit chain.
+Expected: `79 passed`, and `"valid": true` from the audit chain.
 
 Interactive API reference: **<http://localhost:8000/api/docs>**
 

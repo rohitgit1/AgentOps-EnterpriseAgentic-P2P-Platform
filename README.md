@@ -27,6 +27,21 @@ attachment → agent → deliverable pipeline.
 📗 **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** — a 15-minute client walkthrough.
 📕 **[docs/HITL.md](docs/HITL.md)** — how the human-in-the-loop guarantees are enforced.
 
+### Specifications of record
+
+📐 **[docs/SPECIFICATION.md](docs/SPECIFICATION.md)** — the whole platform:
+guarantees, architecture, every enumerated value, the data model, the governance
+machinery, the API, and a rebuild order.
+🤖 **[agents/](agents/README.md)** — one complete build specification per agent.
+Identity, governance envelope, I/O contract, proposal payloads, lifecycle,
+reasoning, thresholds, dependencies and a rebuild checklist — enough to
+reconstruct any agent without reading its source.
+❋ **[skills/](skills/README.md)** — the 28 shared skills and their contracts.
+
+The agent and skill documents are generated from the live code
+(`scripts/generate_agent_specs.py`, `scripts/generate_skill_docs.py`) and a test
+fails if a committed file has drifted from the code it describes.
+
 ---
 
 ## The controlling idea: agents cannot act
@@ -342,12 +357,16 @@ proposal can reach a system of record.
 .venv/bin/python -m pytest backend/tests -q
 ```
 
-57 tests covering the policy gates, the irreversible-action rule across every
+79 tests covering the policy gates, the irreversible-action rule across every
 irreversible kind, role authority, dual approval, the audit hash chain, agent
 lifecycles, the end-to-end intake → payment path, attachment parsing, the
-attachment → agent → deliverable → release flow, and the two explainer surfaces
-— including a drift guard that fails if a new table or a new agent ships
-undocumented.
+attachment → agent → deliverable → release flow, the two explainer surfaces, and
+the generated documentation.
+
+Several are **drift guards** that fail the build rather than the demo: a new
+table that lands outside a data-model domain, a new agent that ships without an
+Academy lesson or without build notes, and any committed `AGENT.md` or
+`SKILL.md` that no longer matches the code it describes.
 
 ---
 
