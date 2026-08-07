@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'tnum';
+  background-image:
+    radial-gradient(900px 500px at 82% -8%, rgba(79, 142, 247, 0.10), transparent 60%),
+    radial-gradient(700px 420px at 6% 4%, rgba(155, 123, 245, 0.08), transparent 55%);
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-ink-700 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-ink-600; }
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-ink-700/70 bg-ink-900/70 backdrop-blur-sm shadow-panel;
+  }
+  .panel-head {
+    @apply flex items-center justify-between gap-3 border-b border-ink-700/70 px-4 py-3;
+  }
+  .panel-title {
+    @apply text-[13px] font-semibold tracking-wide text-slate-100;
+  }
+  .subtle { @apply text-[12px] text-slate-400; }
+  .mono { @apply font-mono text-[11.5px]; }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px]
+           font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary { @apply btn bg-accent text-white hover:bg-accent-deep; }
+  .btn-ghost { @apply btn border border-ink-700 bg-ink-850/60 text-slate-300 hover:bg-ink-800 hover:text-slate-100; }
+  .btn-danger { @apply btn border border-rose/40 bg-rose/10 text-rose hover:bg-rose/20; }
+  .btn-mint  { @apply btn bg-mint text-ink-950 hover:brightness-110; }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px]
+           font-semibold uppercase tracking-wider;
+  }
+  .field {
+    @apply w-full rounded-lg border border-ink-700 bg-ink-950/70 px-2.5 py-1.5 text-[12.5px]
+           text-slate-200 placeholder:text-slate-500 focus:border-accent focus:outline-none;
+  }
+  .table-row { @apply border-b border-ink-800/70 transition-colors hover:bg-ink-850/50; }
+  .th { @apply px-3 py-2 text-left text-[10.5px] font-semibold uppercase tracking-wider text-slate-500; }
+  .td { @apply px-3 py-2.5 text-[12.5px] align-middle; }
+}
+
+.scroll-thin { scrollbar-width: thin; }
