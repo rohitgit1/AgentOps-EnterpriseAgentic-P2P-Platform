@@ -7,6 +7,8 @@ import Agents from './pages/Agents'
 import Login from './pages/Login'
 import { Approvals, Audit, Exceptions, Governance, Payments, SLA, Skills, Suppliers } from './pages/Misc'
 import AgentIO from './pages/AgentIO'
+import Academy from './pages/Academy'
+import DataModel from './pages/DataModel'
 import {
   Artifacts, ContractLifecycle, ProcurementCommandCenter, Sourcing, SpendAnalytics,
   StrategicRisk, TailSpend,
@@ -37,6 +39,8 @@ export default function App() {
         <Route path="/payments" element={<Payments />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/agent-io" element={<AgentIO />} />
+        <Route path="/academy" element={<Academy />} />
+        <Route path="/data-model" element={<DataModel />} />
         <Route path="/artifacts" element={<Artifacts />} />
         <Route path="/procurement" element={<ProcurementCommandCenter />} />
         <Route path="/sourcing" element={<Sourcing />} />

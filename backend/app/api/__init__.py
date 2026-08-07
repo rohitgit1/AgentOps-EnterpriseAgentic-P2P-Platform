@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import admin, agents, analytics, auth, core, hitl, procurement
+from . import admin, agents, analytics, auth, core, explain, hitl, procurement
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -10,6 +10,7 @@ api_router.include_router(agents.router)
 api_router.include_router(agents.orchestration)
 api_router.include_router(procurement.router)
 api_router.include_router(analytics.router)
+api_router.include_router(explain.router)
 api_router.include_router(admin.router)
 
 __all__ = ["api_router"]

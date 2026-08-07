@@ -34,6 +34,10 @@ const NAV = [
     { to: '/audit', label: 'Audit Trail', icon: '⛓' },
     { to: '/governance', label: 'Governance', icon: '⚖' },
   ]},
+  { section: 'Under the Hood', items: [
+    { to: '/academy', label: 'Agents Academy', icon: '◎' },
+    { to: '/data-model', label: 'Data Model', icon: '⛁' },
+  ]},
 ]
 
 export default function Shell({ children }: { children: ReactNode }) {
