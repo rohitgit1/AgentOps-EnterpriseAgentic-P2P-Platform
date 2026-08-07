@@ -28,9 +28,11 @@ type Skill = {
   name: string
   title: string
   purpose: string
+  /** Agents declare skills the shared catalogue does not document yet. */
+  documented: boolean
   inputs: string[]
   output: string[]
-  guardrails?: string[]
+  guardrails: string[]
 }
 
 type Action = {
@@ -101,6 +103,14 @@ const KIND_ICON: Record<string, string> = {
   proposal: '⧉',
 }
 
+/** Only claim documented I/O for the skills that actually have it. */
+function skillsSubtitle(skills: Skill[]): string {
+  const total = skills?.length ?? 0
+  const documented = (skills ?? []).filter((s) => s.documented).length
+  if (documented === total) return `${total} declared capabilities, each with its own inputs and outputs.`
+  return `${total} declared capabilities — ${documented} with a documented input/output contract.`
+}
+
 export default function Academy() {
   const { data, loading } = useApi<Academy>('/academy')
   const [selected, setSelected] = useState<string | null>(null)
@@ -143,7 +153,7 @@ export default function Academy() {
         bodyClass="p-3"
       >
         <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-          {data.foundations.map((f, i) => (
+          {(data.foundations ?? []).map((f, i) => (
             <div key={f.title} className="rounded-xl border border-ink-700 bg-ink-850/40 p-3.5">
               <p className="flex items-center gap-2 text-[12.5px] font-semibold text-slate-100">
                 <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-violet/15 text-[10px] font-bold text-violet">
@@ -165,7 +175,7 @@ export default function Academy() {
               <p className="px-1.5 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
                 {suite.label}
               </p>
-              {suite.agents.map((agent) => (
+              {(suite.agents ?? []).map((agent) => (
                 <button
                   key={agent.key}
                   onClick={() => {
@@ -194,7 +204,9 @@ export default function Academy() {
               <>
                 {current.accepts_attachments && <Chip tone="accent">📎 takes attachments</Chip>}
                 {current.produces_artifacts && <Chip tone="mint">⬇ produces files</Chip>}
-                <Chip tone="amber">{current.governance.autonomy_label}</Chip>
+                {current.governance?.autonomy_label && (
+                  <Chip tone="amber">{current.governance.autonomy_label}</Chip>
+                )}
               </>
             }
           >
@@ -204,7 +216,7 @@ export default function Academy() {
               <div>
                 <SectionLabel>What it is trying to achieve</SectionLabel>
                 <ul className="space-y-1.5">
-                  {current.goals.map((g) => (
+                  {(current.goals ?? []).map((g) => (
                     <li key={g} className="flex gap-2 text-[12px] text-slate-300">
                       <span className="text-mint">▸</span>
                       <span>{g}</span>
@@ -215,7 +227,7 @@ export default function Academy() {
               <div>
                 <SectionLabel>What it can reach</SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
-                  {current.tools.map((t) => (
+                  {(current.tools ?? []).map((t) => (
                     <span
                       key={t}
                       className="rounded-md border border-ink-700 bg-ink-900/70 px-2 py-1 text-[11px] text-slate-400"
@@ -239,9 +251,9 @@ export default function Academy() {
           </Panel>
 
           {/* How it works */}
-          <Panel title="How it works" subtitle={`${current.lifecycle.length} steps, in order, every run.`}>
+          <Panel title="How it works" subtitle={`${current.lifecycle?.length ?? 0} steps, in order, every run.`}>
             <ol className="space-y-0">
-              {current.lifecycle.map((step, i) => (
+              {(current.lifecycle ?? []).map((step, i) => (
                 <li key={step.step} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/15 text-[10.5px] font-bold text-accent-soft">
@@ -275,7 +287,7 @@ export default function Academy() {
                 <div>
                   <SectionLabel>It does</SectionLabel>
                   <ol className="space-y-1.5">
-                    {current.worked_example.steps.map((s, i) => (
+                    {(current.worked_example.steps ?? []).map((s, i) => (
                       <li key={s} className="flex gap-2 text-[12px] text-slate-300">
                         <span className="tabular-nums text-slate-600">{i + 1}.</span>
                         <span>{s}</span>
@@ -299,7 +311,7 @@ export default function Academy() {
             subtitle="Every one of these is a proposal. None of them is applied until a qualified human approves it."
             bodyClass="p-0"
           >
-            {current.actions.length === 0 ? (
+            {(current.actions?.length ?? 0) === 0 ? (
               <Empty title="Proposes nothing" hint="This agent only reports; it never asks for a change." />
             ) : (
               <table className="w-full">
@@ -311,7 +323,7 @@ export default function Academy() {
                   </tr>
                 </thead>
                 <tbody>
-                  {current.actions.map((a) => (
+                  {(current.actions ?? []).map((a) => (
                     <tr key={a.action} className="table-row">
                       <td className="td">
                         <span className="text-slate-100">{a.label}</span>
@@ -335,53 +347,56 @@ export default function Academy() {
           {/* Governance */}
           <Panel title="Governance" subtitle="The envelope this agent runs inside.">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Fact label="Autonomy" value={current.governance.autonomy_label} />
+              <Fact label="Autonomy" value={current.governance?.autonomy_label || "—"} />
               <Fact
                 label="Confidence floor"
-                value={pct(current.governance.confidence_threshold * 100, 0)}
+                value={pct((current.governance?.confidence_threshold ?? 0) * 100, 0)}
                 hint="Below this it must escalate."
               />
               <Fact
                 label="Auto-execute ceiling"
                 value={
-                  current.governance.max_auto_amount_usd > 0
+                  (current.governance?.max_auto_amount_usd ?? 0) > 0
                     ? money(current.governance.max_auto_amount_usd)
                     : 'None'
                 }
                 hint={
-                  current.governance.max_auto_amount_usd > 0
+                  (current.governance?.max_auto_amount_usd ?? 0) > 0
                     ? 'Only if HITL enforcement is off.'
                     : 'Nothing executes without a human.'
                 }
               />
-              <Fact label="Escalates to" value={current.governance.escalation_role_label} />
+              <Fact label="Escalates to" value={current.governance?.escalation_role_label || "—"} />
             </div>
           </Panel>
 
           {/* Skills */}
-          {current.skills.length > 0 && (
+          {(current.skills?.length ?? 0) > 0 && (
             <Panel
               title="Skills"
-              subtitle={`${current.skills.length} declared capabilities, each with its own inputs and outputs.`}
+              subtitle={skillsSubtitle(current.skills)}
               bodyClass="p-3"
             >
               <div className="space-y-2.5">
-                {current.skills.map((skill) => (
+                {(current.skills ?? []).map((skill) => (
                   <div key={skill.name} className="rounded-xl border border-ink-700 bg-ink-850/40 p-3.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[12.5px] font-semibold text-slate-100">{skill.title}</span>
                       <span className="mono text-slate-500">{skill.name}</span>
+                      {skill.documented === false && <Chip tone="slate">undocumented</Chip>}
                     </div>
                     <p className="subtle mt-1">{skill.purpose}</p>
-                    <div className="mt-2.5 grid gap-3 md:grid-cols-2">
-                      <TokenList label="Takes" tone="text-accent-soft" items={skill.inputs} />
-                      <TokenList label="Returns" tone="text-mint" items={skill.output} />
-                    </div>
-                    {skill.guardrails && skill.guardrails.length > 0 && (
+                    {(skill.inputs?.length || skill.output?.length) ? (
+                      <div className="mt-2.5 grid gap-3 md:grid-cols-2">
+                        <TokenList label="Takes" tone="text-accent-soft" items={skill.inputs} />
+                        <TokenList label="Returns" tone="text-mint" items={skill.output} />
+                      </div>
+                    ) : null}
+                    {skill.guardrails?.length > 0 && (
                       <div className="mt-2.5">
                         <SectionLabel>Guardrails</SectionLabel>
                         <ul className="space-y-1">
-                          {skill.guardrails.map((g) => (
+                          {(skill.guardrails ?? []).map((g) => (
                             <li key={g} className="flex gap-2 text-[11.5px] text-slate-400">
                               <span className="text-amber">⚠</span>
                               <span>{g}</span>
@@ -412,7 +427,7 @@ export default function Academy() {
               </pre>
             ) : (
               <p className="subtle">
-                {current.prompt.split('\n')[0]} — {current.prompt.length.toLocaleString()} characters.
+                {(current.prompt ?? '').split('\n')[0]} — {(current.prompt ?? '').length.toLocaleString()} characters.
               </p>
             )}
           </Panel>
@@ -430,14 +445,14 @@ function IOColumn({ heading, icon, specs }: { heading: string; icon: string; spe
         {heading}
       </p>
       <div className="space-y-2.5">
-        {specs.map((spec) => (
+        {(specs ?? []).map((spec) => (
           <div key={spec.name}>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px]">{KIND_ICON[spec.kind]}</span>
               <span className="text-[12px] font-medium text-slate-100">{spec.name}</span>
               <Chip tone={KIND_TONE[spec.kind] ?? 'slate'}>{spec.kind}</Chip>
               {spec.required && <Chip tone="rose">required</Chip>}
-              {spec.formats.map((f) => (
+              {(spec.formats ?? []).map((f) => (
                 <span key={f} className="mono rounded border border-ink-700 px-1 py-px text-slate-500">
                   .{f}
                 </span>
@@ -461,7 +476,7 @@ function TokenList({ label, items, tone }: { label: string; items: string[]; ton
     <div>
       <SectionLabel>{label}</SectionLabel>
       <div className="flex flex-wrap gap-1">
-        {items.map((i) => (
+        {(items ?? []).map((i) => (
           <span
             key={i}
             className={`mono rounded border border-ink-700 bg-ink-900/70 px-1.5 py-px ${tone}`}

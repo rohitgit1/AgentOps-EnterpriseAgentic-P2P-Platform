@@ -498,6 +498,43 @@ def academy(db: Session = Depends(get_db), _: User = Depends(get_current_user)) 
     configs = {c.agent_key: c for c in db.execute(select(AgentConfig)).scalars().all()}
     skills_by_name = {s["name"]: s for s in skills_catalog()}
 
+    # "po_fetch" reads badly as "Po Fetch"; these tokens are always acronyms.
+    acronyms = {"po", "gr", "rfp", "rfq", "sla", "kpi", "erp", "otif", "msa", "ap", "io"}
+
+    def humanise(name: str) -> str:
+        return " ".join(
+            part.upper() if part in acronyms else part.title() for part in name.split("_")
+        )
+
+    def skill_out(name: str) -> dict:
+        """A skill entry with every field always present.
+
+        Agents declare more skills than the shared catalogue documents. An
+        undocumented one still belongs in the lesson — the agent really does use
+        it — but it must be labelled as undocumented rather than rendered as a
+        catalogued skill with empty inputs and outputs.
+        """
+        entry = skills_by_name.get(name)
+        if entry is None:
+            return {
+                "name": name,
+                "title": humanise(name),
+                "purpose": "Declared by the agent; not yet in the shared skills catalogue.",
+                "inputs": [],
+                "output": [],
+                "guardrails": [],
+                "documented": False,
+            }
+        return {
+            "name": entry.get("name", name),
+            "title": entry.get("title") or humanise(name),
+            "purpose": entry.get("purpose") or "",
+            "inputs": entry.get("inputs") or [],
+            "output": entry.get("output") or [],
+            "guardrails": entry.get("guardrails") or [],
+            "documented": True,
+        }
+
     def curriculum(agent) -> dict:
         described = agent.describe()
         config = configs.get(agent.key)
@@ -530,11 +567,7 @@ def academy(db: Session = Depends(get_db), _: User = Depends(get_current_user)) 
             "goals": agent.goals,
             "tools": agent.tools,
             "lifecycle": steps,
-            "skills": [
-                skills_by_name.get(name, {"name": name, "title": name,
-                                          "purpose": "Declared by the agent."})
-                for name in agent.skills
-            ],
+            "skills": [skill_out(name) for name in agent.skills],
             "inputs": described["inputs"],
             "outputs": described["outputs"],
             "accepts_attachments": described["accepts_attachments"],

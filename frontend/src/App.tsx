@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import Shell from './components/Shell'
 import Dashboard from './pages/Dashboard'
 import Inbox from './pages/Inbox'
@@ -14,10 +14,11 @@ import {
   StrategicRisk, TailSpend,
 } from './pages/Procurement'
 import { useSession } from './store'
-import { Toast } from './components/ui'
+import { ErrorBoundary, Toast } from './components/ui'
 
 export default function App() {
   const { user, toast, clearToast } = useSession()
+  const location = useLocation()
 
   if (!user) {
     return (
@@ -30,31 +31,33 @@ export default function App() {
 
   return (
     <Shell>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/inbox" element={<Inbox />} />
-        <Route path="/invoices" element={<Invoices />} />
-        <Route path="/exceptions" element={<Exceptions />} />
-        <Route path="/approvals" element={<Approvals />} />
-        <Route path="/payments" element={<Payments />} />
-        <Route path="/agents" element={<Agents />} />
-        <Route path="/agent-io" element={<AgentIO />} />
-        <Route path="/academy" element={<Academy />} />
-        <Route path="/data-model" element={<DataModel />} />
-        <Route path="/artifacts" element={<Artifacts />} />
-        <Route path="/procurement" element={<ProcurementCommandCenter />} />
-        <Route path="/sourcing" element={<Sourcing />} />
-        <Route path="/spend" element={<SpendAnalytics />} />
-        <Route path="/supplier-risk" element={<StrategicRisk />} />
-        <Route path="/contracts" element={<ContractLifecycle />} />
-        <Route path="/tail-spend" element={<TailSpend />} />
-        <Route path="/sla" element={<SLA />} />
-        <Route path="/suppliers" element={<Suppliers />} />
-        <Route path="/skills" element={<Skills />} />
-        <Route path="/audit" element={<Audit />} />
-        <Route path="/governance" element={<Governance />} />
-        <Route path="*" element={<Dashboard />} />
-      </Routes>
+      <ErrorBoundary resetKey={location.pathname}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/inbox" element={<Inbox />} />
+          <Route path="/invoices" element={<Invoices />} />
+          <Route path="/exceptions" element={<Exceptions />} />
+          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/payments" element={<Payments />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/agent-io" element={<AgentIO />} />
+          <Route path="/academy" element={<Academy />} />
+          <Route path="/data-model" element={<DataModel />} />
+          <Route path="/artifacts" element={<Artifacts />} />
+          <Route path="/procurement" element={<ProcurementCommandCenter />} />
+          <Route path="/sourcing" element={<Sourcing />} />
+          <Route path="/spend" element={<SpendAnalytics />} />
+          <Route path="/supplier-risk" element={<StrategicRisk />} />
+          <Route path="/contracts" element={<ContractLifecycle />} />
+          <Route path="/tail-spend" element={<TailSpend />} />
+          <Route path="/sla" element={<SLA />} />
+          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/skills" element={<Skills />} />
+          <Route path="/audit" element={<Audit />} />
+          <Route path="/governance" element={<Governance />} />
+          <Route path="*" element={<Dashboard />} />
+        </Routes>
+      </ErrorBoundary>
     </Shell>
   )
 }

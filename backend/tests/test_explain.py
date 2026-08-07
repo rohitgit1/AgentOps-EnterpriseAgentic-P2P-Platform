@@ -132,6 +132,31 @@ def test_academy_covers_every_agent_with_a_full_lesson(client, auth):
         assert lesson["governance"]["autonomy_label"]
 
 
+def test_every_lesson_field_that_should_be_a_list_is_one(client, auth):
+    """A missing list is what blanks the screen, so the shape is the contract.
+
+    Agents declare more skills than the shared catalogue documents; an
+    undocumented one must still come back with every field present.
+    """
+    body = client.get("/api/academy", headers=auth).json()
+    lessons = [a for suite in body["suites"].values() for a in suite["agents"]]
+
+    for lesson in lessons:
+        for field in ("goals", "tools", "lifecycle", "skills", "inputs", "outputs", "actions"):
+            assert isinstance(lesson[field], list), f"{lesson['key']}.{field} is not a list"
+        for spec in lesson["inputs"] + lesson["outputs"]:
+            assert isinstance(spec["formats"], list)
+        for skill in lesson["skills"]:
+            for field in ("inputs", "output", "guardrails"):
+                assert isinstance(skill[field], list), \
+                    f"{lesson['key']} skill {skill['name']}.{field} is {skill[field]!r}"
+            assert skill["title"] and isinstance(skill["documented"], bool)
+        assert isinstance(lesson["worked_example"]["steps"], list)
+
+    undocumented = [s for a in lessons for s in a["skills"] if not s["documented"]]
+    assert undocumented, "this guard is only meaningful while some skills are uncatalogued"
+
+
 def test_academy_marks_irreversible_actions_and_their_approver(client, auth):
     lesson = client.get("/api/academy/sourcing_rfp", headers=auth).json()
     award = next(a for a in lesson["actions"] if a["action"] == "award_sourcing_event")
