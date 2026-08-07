@@ -6,7 +6,7 @@ import { relative } from '../lib/format'
 import { Chip, Toast } from './ui'
 
 const NAV = [
-  { section: 'Operate', items: [
+  { section: 'P2P AgentOps', items: [
     { to: '/', label: 'Command Center', icon: '◈', end: true },
     { to: '/inbox', label: 'Approval Inbox', icon: '⧉', badge: 'hitl' },
     { to: '/invoices', label: 'Invoices', icon: '▤' },
@@ -14,8 +14,18 @@ const NAV = [
     { to: '/approvals', label: 'My Approvals', icon: '✓' },
     { to: '/payments', label: 'Payments', icon: '⇄' },
   ]},
+  { section: 'Procurement AgentOps', items: [
+    { to: '/procurement', label: 'Command Center', icon: '◉' },
+    { to: '/sourcing', label: 'Sourcing Events', icon: '⇉' },
+    { to: '/spend', label: 'Spend & Savings', icon: '◫' },
+    { to: '/supplier-risk', label: 'Supplier Risk', icon: '⌬' },
+    { to: '/contracts', label: 'Contracts', icon: '✎' },
+    { to: '/tail-spend', label: 'Tail Spend', icon: '⋯' },
+  ]},
   { section: 'Intelligence', items: [
     { to: '/agents', label: 'Agent Control Room', icon: '⬢' },
+    { to: '/agent-io', label: 'Agent I/O Catalogue', icon: '⇄' },
+    { to: '/artifacts', label: 'Artifact Library', icon: '🗎' },
     { to: '/sla', label: 'SLA Command Center', icon: '◔' },
     { to: '/suppliers', label: 'Suppliers', icon: '⬡' },
     { to: '/skills', label: 'Skills Library', icon: '❋' },
@@ -62,8 +72,8 @@ export default function Shell({ children }: { children: ReactNode }) {
             ◈
           </span>
           <div className="leading-tight">
-            <p className="text-[13.5px] font-semibold text-slate-100">P2P AgentOps</p>
-            <p className="text-[10px] uppercase tracking-wider text-slate-500">Procure-to-Pay</p>
+            <p className="text-[13.5px] font-semibold text-slate-100">AgentOps</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500">P2P · Procurement</p>
           </div>
         </div>
 

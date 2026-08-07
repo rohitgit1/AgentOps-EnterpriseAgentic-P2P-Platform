@@ -12,7 +12,7 @@ from ..enums import ActionKind, AutonomyLevel, ExceptionType, RiskLevel, Role, W
 from ..models import Invoice, Supplier
 from ..services.policy import PolicyStore
 from ..skills import vendor_risk
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class SupplierRiskAgent(BaseAgent):
@@ -37,6 +37,22 @@ class SupplierRiskAgent(BaseAgent):
         ActionKind.CREATE_EXCEPTION,
         ActionKind.SEND_SUPPLIER_MESSAGE,
     ]
+
+    inputs = [
+        IOSpec("supplier_id", "Screen one supplier. Omit to sweep the vendor master.",
+               kind="data", required=False),
+        IOSpec("vendor master & registries", "Sanctions, insurance, tax forms and bank-change log.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Screening findings", "Per-supplier findings with severity and the action each implies.",
+               kind="record"),
+        IOSpec("Payment-blocking verdict", "Whether the supplier may be paid right now.",
+               kind="record"),
+        IOSpec("Checkpoint", "Block supplier / freeze invoice / request documentation.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         if context.get("supplier_id"):

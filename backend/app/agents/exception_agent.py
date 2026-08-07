@@ -19,7 +19,7 @@ from ..enums import (
 )
 from ..models import Contract, ExceptionCase, Invoice, PurchaseOrder, Supplier, utcnow
 from ..skills import exception_resolution
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class ExceptionResolutionAgent(BaseAgent):
@@ -45,6 +45,21 @@ class ExceptionResolutionAgent(BaseAgent):
         ActionKind.UPDATE_INVOICE_FIELDS,
         ActionKind.HOLD_INVOICE,
     ]
+
+    inputs = [
+        IOSpec("exception_id", "The exception case to diagnose.", kind="data", required=True),
+        IOSpec("contract & PO context", "Rate card and purchase order, fetched automatically.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Diagnosis", "Recommended resolution with confidence and the priced alternatives.",
+               kind="record"),
+        IOSpec("Supplier message draft", "Where the resolution needs the supplier, a drafted message.",
+               kind="record"),
+        IOSpec("Checkpoint", "Resolve / chase receipt / correct / send message — AP decides.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         case = db.get(ExceptionCase, context.get("exception_id", ""))

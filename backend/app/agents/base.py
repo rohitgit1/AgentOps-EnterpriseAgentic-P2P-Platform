@@ -22,12 +22,14 @@ from ..enums import (
     ACTION_LABELS,
     ActionKind,
     AgentRunStatus,
+    AgentSuite,
     AutonomyLevel,
     EventType,
     Role,
     WorkflowStage,
 )
 from ..models import AgentConfig, AgentExecution, HumanTask, User, utcnow
+from ..services import artifacts as artifact_service
 from ..services import hitl, llm, policy
 from ..services.events import jsonable
 from ..services.audit import write_audit
@@ -37,6 +39,33 @@ from ..services.events import record_event
 # ==========================================================================
 # Value objects
 # ==========================================================================
+@dataclass
+class IOSpec:
+    """One declared input or output of an agent.
+
+    This is the contract the Agent I/O catalogue renders, so an evaluator can
+    see exactly what each agent consumes and what it hands back before running
+    anything.
+    """
+
+    name: str
+    description: str
+    kind: str = "data"          # attachment | data | artifact | record | proposal
+    formats: list[str] = field(default_factory=list)
+    required: bool = False
+    example: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "kind": self.kind,
+            "formats": self.formats,
+            "required": self.required,
+            "example": self.example,
+        }
+
+
 @dataclass
 class PlanStep:
     step: int
@@ -82,6 +111,8 @@ class ProposedAction:
     due_in_hours: float = 8.0
     assigned_to_id: str | None = None
     extra_flags: list[str] = field(default_factory=list)
+    # Draft deliverables this action would release on approval.
+    artifact_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -110,6 +141,7 @@ class AgentRunResult:
 class BaseAgent:
     key: str = "base"
     name: str = "Base Agent"
+    suite: str = AgentSuite.P2P
     role: str = "Generic P2P agent"
     mission: str = ""
     goals: list[str] = []
@@ -121,6 +153,9 @@ class BaseAgent:
     default_confidence_threshold: float = 0.90
     max_auto_amount_usd: float = 0.0
     allowed_actions: list[str] = []
+    # Declared I/O contract — see IOSpec.
+    inputs: list[IOSpec] = []
+    outputs: list[IOSpec] = []
 
     # ---- lifecycle hooks the concrete agents implement --------------------
     def plan(self, db: Session, context: dict) -> list[PlanStep]:
@@ -149,6 +184,12 @@ class BaseAgent:
         context = dict(context or {})
         started = time.perf_counter()
 
+        # Resolve uploaded attachments into parsed payloads that gather() can
+        # read directly, so no agent needs to know about storage.
+        context["attachments"] = artifact_service.load_for_agent(
+            db, context.get("attachment_ids") or []
+        )
+
         config = policy.get_agent_config(db, self.key)
         if config is not None and not config.enabled:
             execution = self._new_execution(db, context, trigger, triggered_by, parent_run_id)
@@ -162,6 +203,8 @@ class BaseAgent:
             return AgentRunResult(execution, [], [], AgentDecision(execution.conclusion, 0.0))
 
         execution = self._new_execution(db, context, trigger, triggered_by, parent_run_id)
+        # Agents that produce deliverables stamp them with the run that made them.
+        context["_execution_id"] = execution.id
         record_event(
             db,
             event_type=EventType.AGENT_STARTED,
@@ -244,6 +287,11 @@ class BaseAgent:
                     {"action": str(proposal.action_kind), **verdict.to_dict()}
                 )
 
+                payload = dict(proposal.payload)
+                if proposal.artifact_ids:
+                    # The executor releases these once a human approves.
+                    payload["artifact_ids"] = proposal.artifact_ids
+
                 task = hitl.create_checkpoint(
                     db,
                     execution=execution,
@@ -256,7 +304,7 @@ class BaseAgent:
                     rationale=reasoning.narrative,
                     policy=verdict,
                     confidence=proposal.confidence,
-                    proposed_payload=jsonable(proposal.payload),
+                    proposed_payload=jsonable(payload),
                     diff_preview=jsonable(proposal.diff_preview),
                     evidence=jsonable(decision.evidence),
                     alternatives=jsonable(proposal.alternatives),
@@ -438,6 +486,7 @@ class BaseAgent:
         return {
             "key": self.key,
             "name": self.name,
+            "suite": str(self.suite),
             "role": self.role,
             "mission": self.mission,
             "goals": self.goals,
@@ -447,6 +496,10 @@ class BaseAgent:
             "default_autonomy": str(self.default_autonomy),
             "escalation_role": str(self.escalation_role),
             "allowed_actions": [str(a) for a in self.allowed_actions],
+            "inputs": [i.to_dict() for i in self.inputs],
+            "outputs": [o.to_dict() for o in self.outputs],
+            "accepts_attachments": any(i.kind == "attachment" for i in self.inputs),
+            "produces_artifacts": any(o.kind == "artifact" for o in self.outputs),
             "prompt": self.prompt_template(),
         }
 

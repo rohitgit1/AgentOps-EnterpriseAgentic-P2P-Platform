@@ -42,17 +42,25 @@ from ..models import (
     AgentConfig,
     AgentExecution,
     Approval,
+    ContractDraft,
     ExceptionCase,
     HumanTask,
     Invoice,
     Payment,
     PurchaseOrder,
     PurchaseRequest,
+    RiskAssessment,
+    SavingsOpportunity,
+    SourcingBid,
+    SourcingEvent,
+    SpendTransaction,
     Supplier,
     SupplierMessage,
+    TailSpendFinding,
     User,
     utcnow,
 )
+from . import artifacts as artifact_service
 from . import erp as erp_service
 from .audit import snapshot, write_audit
 from .events import jsonable, notify, record_event
@@ -401,7 +409,16 @@ def execute_action(db: Session, *, task: HumanTask, payload: dict, actor: User) 
     handler = _HANDLERS.get(str(task.action_kind))
     if handler is None:
         raise HITLError(f"No executor registered for action '{task.action_kind}'.")
-    return handler(db, task, payload, actor)
+    result = handler(db, task, payload, actor)
+
+    # A deliverable stays a draft until the action that owns it is approved.
+    released = artifact_service.release(
+        db, payload.get("artifact_ids") or [],
+        released_by=actor.full_name, human_task_id=task.id,
+    )
+    if released:
+        result = {**(result or {}), "released_artifacts": released}
+    return result
 
 
 def _invoice(db: Session, task: HumanTask, payload: dict) -> Invoice:
@@ -1172,3 +1189,295 @@ def expire_overdue_tasks(db: Session) -> int:
 
 def registered_actions() -> list[str]:
     return sorted(_HANDLERS)
+
+
+# ==========================================================================
+# Procurement AgentOps executors
+# ==========================================================================
+def _proc_audit(db: Session, task: HumanTask, actor: User, action: str, description: str,
+                entity_type: str, entity_id: str | None, entity_label: str | None,
+                before: dict | None = None, after: dict | None = None) -> None:
+    write_audit(
+        db, action=action, description=description,
+        actor=actor.full_name, actor_type="human", actor_role=actor.role,
+        entity_type=entity_type, entity_id=entity_id, entity_label=entity_label,
+        before_state=before or {}, after_state=after or {},
+        agent_key=task.agent_key, human_task_id=task.id, confidence=task.confidence,
+    )
+
+
+@action(ActionKind.ISSUE_RFP)
+def _issue_rfp(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    event = db.get(SourcingEvent, payload.get("event_id") or task.entity_id or "")
+    if event is None:
+        raise HITLError("Sourcing event not found.")
+    before = {"status": event.status, "issued_at": str(event.issued_at)}
+    event.status = "issued"
+    event.issued_at = utcnow()
+    if payload.get("response_due"):
+        try:
+            event.response_due = date.fromisoformat(payload["response_due"])
+        except ValueError:
+            pass
+    invited = payload.get("invited_suppliers") or []
+
+    record_event(
+        db, event_type=EventType.SOURCING_EVENT_CREATED,
+        title=f"RFP issued · {event.event_number}",
+        message=f"{event.title} issued to {len(invited)} supplier(s) by {actor.full_name}.",
+        entity_type="sourcing_event", entity_id=event.id, entity_label=event.event_number,
+        actor=actor.full_name, actor_type="human", severity="success",
+    )
+    _proc_audit(db, task, actor, "sourcing.rfp_issued",
+                f"{event.event_number} issued to {len(invited)} supplier(s): "
+                f"{', '.join(invited[:6])}.",
+                "sourcing_event", event.id, event.event_number, before,
+                {"status": event.status, "invited": invited})
+    return {"event_number": event.event_number, "invited_suppliers": invited,
+            "status": event.status}
+
+
+@action(ActionKind.AWARD_SOURCING_EVENT)
+def _award_sourcing_event(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    event = db.get(SourcingEvent, payload.get("event_id") or task.entity_id or "")
+    if event is None:
+        raise HITLError("Sourcing event not found.")
+    bid = db.get(SourcingBid, payload.get("bid_id") or "")
+    if bid is None:
+        raise HITLError("Winning bid not found.")
+
+    before = {"status": event.status, "awarded_supplier_id": event.awarded_supplier_id}
+    event.status = "awarded"
+    event.awarded_supplier_id = bid.supplier_id
+    event.awarded_at = utcnow()
+    event.expected_savings_usd = float(payload.get("expected_savings_usd", 0.0))
+    if event.issued_at:
+        event.cycle_days = round((utcnow() - event.issued_at).total_seconds() / 86400.0, 2)
+    bid.status = "awarded"
+    for other in event.bids:
+        if other.id != bid.id:
+            other.status = "not_awarded"
+
+    record_event(
+        db, event_type=EventType.SOURCING_EVENT_AWARDED,
+        title=f"Awarded · {event.event_number}",
+        message=f"{bid.supplier_name} awarded {event.title}. "
+                f"Expected savings {event.expected_savings_usd:,.0f} USD.",
+        entity_type="sourcing_event", entity_id=event.id, entity_label=event.event_number,
+        actor=actor.full_name, actor_type="human", severity="success",
+    )
+    _proc_audit(db, task, actor, "sourcing.awarded",
+                f"{event.event_number} awarded to {bid.supplier_name} at "
+                f"{bid.bid_amount_usd:,.2f} USD.",
+                "sourcing_event", event.id, event.event_number, before,
+                {"supplier": bid.supplier_name, "amount": bid.bid_amount_usd})
+    return {"event_number": event.event_number, "awarded_to": bid.supplier_name,
+            "amount": bid.bid_amount_usd, "expected_savings": event.expected_savings_usd}
+
+
+@action(ActionKind.PUBLISH_SPEND_CLASSIFICATION)
+def _publish_spend_classification(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    updates = payload.get("classifications") or []
+    applied = 0
+    for row in updates:
+        txn = db.get(SpendTransaction, row.get("transaction_id", ""))
+        if txn is None:
+            continue
+        txn.category = row.get("category") or txn.category
+        txn.unspsc = row.get("unspsc") or txn.unspsc
+        txn.classification_confidence = float(row.get("confidence", 0.0))
+        txn.classified_by = task.agent_key
+        txn.maverick = bool(row.get("maverick", txn.maverick))
+        txn.tail_spend = bool(row.get("tail_spend", txn.tail_spend))
+        if row.get("supplier_id"):
+            txn.supplier_id = row["supplier_id"]
+        applied += 1
+
+    _proc_audit(db, task, actor, "spend.classification_published",
+                f"{applied} transaction(s) classified and written to the spend cube.",
+                "spend", None, "Spend classification", None, {"applied": applied})
+    return {"transactions_classified": applied}
+
+
+@action(ActionKind.CREATE_SAVINGS_OPPORTUNITY)
+def _create_savings_opportunity(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    created = []
+    for item in payload.get("opportunities") or []:
+        count = db.execute(select(func.count(SavingsOpportunity.id))).scalar_one() or 0
+        opportunity = SavingsOpportunity(
+            reference=f"SAV-{count + 7001 + len(created)}",
+            title=item.get("title", "Savings opportunity"),
+            lever=item.get("lever", "consolidation"),
+            category=item.get("category"),
+            supplier_id=item.get("supplier_id"),
+            annual_spend_usd=float(item.get("annual_spend_usd", 0.0)),
+            estimated_savings_usd=float(item.get("estimated_savings_usd", 0.0)),
+            confidence=float(item.get("confidence", 0.0)),
+            rationale=item.get("rationale", ""),
+            status="approved",
+            identified_by_agent=task.agent_key,
+            approved_by=actor.full_name,
+        )
+        db.add(opportunity)
+        db.flush()
+        created.append({"reference": opportunity.reference,
+                        "savings": opportunity.estimated_savings_usd})
+        record_event(
+            db, event_type=EventType.SAVING_OPPORTUNITY_DETECTED,
+            title=f"Savings logged · {opportunity.reference}",
+            message=f"{opportunity.title} — {opportunity.estimated_savings_usd:,.0f} USD "
+                    f"({opportunity.lever}).",
+            entity_type="savings", entity_id=opportunity.id, entity_label=opportunity.reference,
+            actor=actor.full_name, actor_type="human", severity="success",
+        )
+
+    total = round(sum(c["savings"] for c in created), 2)
+    _proc_audit(db, task, actor, "spend.savings_logged",
+                f"{len(created)} opportunity(ies) accepted into the savings pipeline, "
+                f"{total:,.2f} USD total.",
+                "savings", None, "Savings pipeline", None, {"created": created})
+    return {"opportunities_created": len(created), "total_savings_usd": total}
+
+
+@action(ActionKind.SET_SUPPLIER_DISPOSITION)
+def _set_supplier_disposition(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    assessment = db.get(RiskAssessment, payload.get("assessment_id") or task.entity_id or "")
+    if assessment is None:
+        raise HITLError("Risk assessment not found.")
+    supplier = db.get(Supplier, assessment.supplier_id)
+    disposition = payload.get("disposition", assessment.recommended_disposition)
+
+    before = {"applied_disposition": assessment.applied_disposition,
+              "supplier_on_hold": supplier.on_hold if supplier else None}
+    assessment.applied_disposition = disposition
+    assessment.decided_by = actor.full_name
+
+    if supplier is not None:
+        supplier.risk_score = assessment.overall_risk
+        supplier.risk_level = assessment.risk_band
+        if disposition == "block":
+            supplier.on_hold = True
+            supplier.hold_reason = f"Blocked on strategic risk review: {payload.get('reason', '')}"
+        elif disposition == "approve":
+            supplier.on_hold = False
+            supplier.hold_reason = None
+
+    record_event(
+        db, event_type=EventType.SUPPLIER_RISK_ALERT,
+        title=f"Supplier disposition · {disposition}",
+        message=f"{assessment.supplier_name} set to '{disposition}' by {actor.full_name} "
+                f"(overall risk {assessment.overall_risk:.0f}).",
+        entity_type="supplier", entity_id=assessment.supplier_id,
+        entity_label=assessment.supplier_name,
+        actor=actor.full_name, actor_type="human",
+        severity="critical" if disposition == "block" else "warning",
+    )
+    _proc_audit(db, task, actor, "supplier.disposition_set",
+                f"{assessment.supplier_name} → {disposition}. {payload.get('reason', '')}",
+                "supplier", assessment.supplier_id, assessment.supplier_name,
+                before, {"disposition": disposition})
+    return {"supplier": assessment.supplier_name, "disposition": disposition}
+
+
+@action(ActionKind.DRAFT_CONTRACT)
+def _draft_contract(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    draft = db.get(ContractDraft, payload.get("draft_id") or task.entity_id or "")
+    if draft is None:
+        raise HITLError("Contract draft not found.")
+    before = {"status": draft.status}
+    draft.status = "approved_draft"
+    record_event(
+        db, event_type=EventType.CONTRACT_DRAFTED,
+        title=f"Draft accepted · {draft.reference}",
+        message=f"{draft.title} accepted by {actor.full_name}.",
+        entity_type="contract_draft", entity_id=draft.id, entity_label=draft.reference,
+        actor=actor.full_name, actor_type="human", severity="success",
+    )
+    _proc_audit(db, task, actor, "contract.draft_accepted",
+                f"{draft.reference} ({draft.contract_type}) accepted, "
+                f"legal risk {draft.legal_risk_score:.0f}.",
+                "contract_draft", draft.id, draft.reference, before, {"status": draft.status})
+    return {"reference": draft.reference, "status": draft.status}
+
+
+@action(ActionKind.ISSUE_CONTRACT_FOR_SIGNATURE)
+def _issue_contract_for_signature(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    draft = db.get(ContractDraft, payload.get("draft_id") or task.entity_id or "")
+    if draft is None:
+        raise HITLError("Contract draft not found.")
+    before = {"status": draft.status}
+    draft.status = "issued_for_signature"
+    draft.issued_by = actor.full_name
+    _proc_audit(db, task, actor, "contract.issued_for_signature",
+                f"{draft.reference} sent to {draft.supplier_name} for signature "
+                f"({draft.value_usd:,.2f} USD over {draft.term_months} months).",
+                "contract_draft", draft.id, draft.reference, before,
+                {"status": draft.status, "value": draft.value_usd})
+    record_event(
+        db, event_type=EventType.SYSTEM,
+        title=f"Contract issued · {draft.reference}",
+        message=f"Sent to {draft.supplier_name} for signature.",
+        entity_type="contract_draft", entity_id=draft.id, entity_label=draft.reference,
+        actor=actor.full_name, actor_type="human", severity="success",
+    )
+    return {"reference": draft.reference, "status": draft.status}
+
+
+@action(ActionKind.CONSOLIDATE_SUPPLIERS)
+def _consolidate_suppliers(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    finding = db.get(TailSpendFinding, payload.get("finding_id") or task.entity_id or "")
+    if finding is None:
+        raise HITLError("Tail spend finding not found.")
+    before = {"status": finding.status}
+    finding.status = "consolidation_approved"
+    finding.resolved_by = actor.full_name
+    _proc_audit(db, task, actor, "tailspend.consolidation_approved",
+                f"{finding.reference}: {len(finding.supplier_names or [])} supplier(s) "
+                f"consolidated onto {finding.recommended_supplier}, "
+                f"{finding.consolidation_savings_usd:,.2f} USD projected.",
+                "tail_spend", finding.id, finding.reference, before,
+                {"status": finding.status})
+    return {"reference": finding.reference,
+            "consolidated_onto": finding.recommended_supplier,
+            "savings_usd": finding.consolidation_savings_usd}
+
+
+@action(ActionKind.ENFORCE_CATALOG)
+def _enforce_catalog(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    finding = db.get(TailSpendFinding, payload.get("finding_id") or task.entity_id or "")
+    if finding is None:
+        raise HITLError("Tail spend finding not found.")
+    before = {"status": finding.status}
+    finding.status = "catalog_enforced"
+    finding.resolved_by = actor.full_name
+    record_event(
+        db, event_type=EventType.MAVERICK_SPEND_DETECTED,
+        title=f"Catalog enforcement · {finding.reference}",
+        message=f"{finding.category or 'category'}: buying channel restricted to catalog "
+                f"({finding.transaction_count} transactions, {finding.spend_usd:,.0f} USD).",
+        entity_type="tail_spend", entity_id=finding.id, entity_label=finding.reference,
+        actor=actor.full_name, actor_type="human", severity="warning",
+    )
+    _proc_audit(db, task, actor, "tailspend.catalog_enforced",
+                finding.recommendation, "tail_spend", finding.id, finding.reference,
+                before, {"status": finding.status})
+    return {"reference": finding.reference, "status": finding.status}
+
+
+@action(ActionKind.PUBLISH_EXECUTIVE_BRIEF)
+def _publish_executive_brief(db: Session, task: HumanTask, payload: dict, actor: User) -> dict:
+    notify(
+        db, title=payload.get("title", "Procurement executive brief"),
+        body=payload.get("summary", ""), target_role=Role.CFO, severity="info",
+    )
+    record_event(
+        db, event_type=EventType.SYSTEM,
+        title=payload.get("title", "Executive brief published"),
+        message=payload.get("summary", "")[:200],
+        entity_type="procurement", entity_id=None, entity_label="Procurement Command Center",
+        actor=actor.full_name, actor_type="human", severity="success",
+    )
+    _proc_audit(db, task, actor, "procurement.brief_published",
+                payload.get("summary", ""), "procurement", None,
+                "Procurement Command Center", None, {"published": True})
+    return {"published": True}

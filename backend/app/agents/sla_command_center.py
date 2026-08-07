@@ -23,7 +23,7 @@ from ..enums import (
 from ..models import Approval, Invoice, SLARisk, User, utcnow
 from ..services.policy import PolicyStore
 from ..skills import sla_prediction
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 TERMINAL_STATUSES = {InvoiceStatus.PAID, InvoiceStatus.REJECTED, InvoiceStatus.CANCELLED}
 
@@ -46,6 +46,22 @@ class SLACommandCenterAgent(BaseAgent):
     default_confidence_threshold = 0.88
     allowed_actions = [ActionKind.REBALANCE_WORKLOAD, ActionKind.RAISE_EXECUTIVE_ALERT,
                        ActionKind.ESCALATE_APPROVAL]
+
+    inputs = [
+        IOSpec("in-flight portfolio", "Every open invoice, its stage, approver and exceptions.",
+               kind="data", required=False),
+        IOSpec("SLA policy", "Cycle target and thresholds, read from policy-as-code.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Risk register", "Per-invoice breach forecast with the drivers and hours remaining.",
+               kind="record"),
+        IOSpec("Workload analysis", "Queue depth per approver and the rebalancing moves available.",
+               kind="record"),
+        IOSpec("Checkpoint", "Rebalance workload / escalate / raise an executive alert.",
+               kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         return ("sla", None, "SLA Command Center")

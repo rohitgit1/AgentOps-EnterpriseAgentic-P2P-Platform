@@ -18,7 +18,7 @@ from ..enums import (
 from ..models import Approval, Invoice, User, utcnow
 from ..services.policy import PolicyStore
 from ..skills import approval_routing, sla_prediction
-from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item
+from .base import AgentDecision, BaseAgent, Observation, PlanStep, ProposedAction, evidence_item, IOSpec
 
 
 class ApprovalAccelerationAgent(BaseAgent):
@@ -43,6 +43,19 @@ class ApprovalAccelerationAgent(BaseAgent):
         ActionKind.ESCALATE_APPROVAL,
         ActionKind.REASSIGN_APPROVER,
     ]
+
+    inputs = [
+        IOSpec("invoice_id", "The invoice whose approval is being chased.", kind="data", required=True),
+        IOSpec("approval queue & calendar", "Approver availability, delegation matrix and queue depth.",
+               kind="data", required=False),
+    ]
+    outputs = [
+        IOSpec("Routing decision", "Chosen approver, level, and the authority basis for the choice.",
+               kind="record"),
+        IOSpec("SLA forecast", "Breach risk score with the drivers behind it.", kind="record"),
+        IOSpec("Checkpoint", "Route / remind / reroute to delegate / escalate.", kind="proposal"),
+    ]
+
 
     def entity_ref(self, db: Session, context: dict):
         invoice = db.get(Invoice, context.get("invoice_id", ""))

@@ -9,6 +9,24 @@ class StrEnum(str, Enum):
         return self.value
 
 
+class AgentSuite(StrEnum):
+    """The platform ships two agent suites over one control plane."""
+
+    P2P = "p2p"                    # operational Procure-to-Pay
+    PROCUREMENT = "procurement"    # strategic sourcing & category management
+
+
+SUITE_LABELS: dict[str, str] = {
+    AgentSuite.P2P: "P2P AgentOps",
+    AgentSuite.PROCUREMENT: "Procurement AgentOps",
+}
+
+SUITE_BLURBS: dict[str, str] = {
+    AgentSuite.P2P: "Operational accounts payable — intake to payment.",
+    AgentSuite.PROCUREMENT: "Strategic sourcing, spend, supplier risk, contracts and tail spend.",
+}
+
+
 # --------------------------------------------------------------------------
 # People & governance
 # --------------------------------------------------------------------------
@@ -250,6 +268,19 @@ class ActionKind(StrEnum):
     APPROVE_PURCHASE_REQUEST = "approve_purchase_request"
     REBALANCE_WORKLOAD = "rebalance_workload"
     RAISE_EXECUTIVE_ALERT = "raise_executive_alert"
+
+    # --- Procurement AgentOps -------------------------------------------
+    ISSUE_RFP = "issue_rfp"
+    AWARD_SOURCING_EVENT = "award_sourcing_event"
+    PUBLISH_SPEND_CLASSIFICATION = "publish_spend_classification"
+    CREATE_SAVINGS_OPPORTUNITY = "create_savings_opportunity"
+    SET_SUPPLIER_DISPOSITION = "set_supplier_disposition"
+    DRAFT_CONTRACT = "draft_contract"
+    ISSUE_CONTRACT_FOR_SIGNATURE = "issue_contract_for_signature"
+    CONSOLIDATE_SUPPLIERS = "consolidate_suppliers"
+    ENFORCE_CATALOG = "enforce_catalog"
+    PUBLISH_EXECUTIVE_BRIEF = "publish_executive_brief"
+
     NO_OP = "no_op"
 
 
@@ -263,6 +294,12 @@ IRREVERSIBLE_ACTIONS: set[str] = {
     ActionKind.BLOCK_SUPPLIER,
     ActionKind.APPROVE_PURCHASE_REQUEST,
     ActionKind.SCHEDULE_PAYMENT,
+    # Procurement: each of these reaches a supplier or commits the company.
+    ActionKind.ISSUE_RFP,
+    ActionKind.AWARD_SOURCING_EVENT,
+    ActionKind.ISSUE_CONTRACT_FOR_SIGNATURE,
+    ActionKind.CONSOLIDATE_SUPPLIERS,
+    ActionKind.PUBLISH_EXECUTIVE_BRIEF,
 }
 
 # Minimum role authority required to decide an action.
@@ -290,6 +327,17 @@ ACTION_MIN_ROLE: dict[str, str] = {
     ActionKind.REBALANCE_WORKLOAD: Role.AP_MANAGER,
     ActionKind.RAISE_EXECUTIVE_ALERT: Role.AP_MANAGER,
     ActionKind.NO_OP: Role.AP_CLERK,
+    # --- Procurement AgentOps -------------------------------------------
+    ActionKind.ISSUE_RFP: Role.PROCUREMENT,
+    ActionKind.AWARD_SOURCING_EVENT: Role.PROCUREMENT,
+    ActionKind.PUBLISH_SPEND_CLASSIFICATION: Role.PROCUREMENT,
+    ActionKind.CREATE_SAVINGS_OPPORTUNITY: Role.PROCUREMENT,
+    ActionKind.SET_SUPPLIER_DISPOSITION: Role.PROCUREMENT,
+    ActionKind.DRAFT_CONTRACT: Role.PROCUREMENT,
+    ActionKind.ISSUE_CONTRACT_FOR_SIGNATURE: Role.CONTROLLER,
+    ActionKind.CONSOLIDATE_SUPPLIERS: Role.PROCUREMENT,
+    ActionKind.ENFORCE_CATALOG: Role.PROCUREMENT,
+    ActionKind.PUBLISH_EXECUTIVE_BRIEF: Role.CFO,
 }
 
 ACTION_LABELS: dict[str, str] = {
@@ -316,6 +364,17 @@ ACTION_LABELS: dict[str, str] = {
     ActionKind.REBALANCE_WORKLOAD: "Rebalance workload",
     ActionKind.RAISE_EXECUTIVE_ALERT: "Raise executive alert",
     ActionKind.NO_OP: "No action required",
+    # --- Procurement AgentOps -------------------------------------------
+    ActionKind.ISSUE_RFP: "Issue RFP to suppliers",
+    ActionKind.AWARD_SOURCING_EVENT: "Award sourcing event",
+    ActionKind.PUBLISH_SPEND_CLASSIFICATION: "Publish spend classification",
+    ActionKind.CREATE_SAVINGS_OPPORTUNITY: "Log savings opportunity",
+    ActionKind.SET_SUPPLIER_DISPOSITION: "Set supplier disposition",
+    ActionKind.DRAFT_CONTRACT: "Save contract draft",
+    ActionKind.ISSUE_CONTRACT_FOR_SIGNATURE: "Issue contract for signature",
+    ActionKind.CONSOLIDATE_SUPPLIERS: "Consolidate suppliers",
+    ActionKind.ENFORCE_CATALOG: "Enforce catalog buying",
+    ActionKind.PUBLISH_EXECUTIVE_BRIEF: "Publish executive brief",
 }
 
 
@@ -342,3 +401,13 @@ class EventType(StrEnum):
     RISK_ALERT = "risk.alert"
     POLICY_BLOCK = "policy.block"
     SYSTEM = "system"
+    # --- Procurement AgentOps (matches the spec's communication framework)
+    SOURCING_EVENT_CREATED = "sourcing.event_created"
+    SOURCING_EVENT_AWARDED = "sourcing.event_awarded"
+    SAVING_OPPORTUNITY_DETECTED = "spend.saving_opportunity_detected"
+    SUPPLIER_RISK_ALERT = "supplier.risk_alert"
+    CONTRACT_EXPIRING = "contract.expiring"
+    CONTRACT_DRAFTED = "contract.drafted"
+    MAVERICK_SPEND_DETECTED = "tailspend.maverick_detected"
+    ARTIFACT_PRODUCED = "artifact.produced"
+    ARTIFACT_RELEASED = "artifact.released"

@@ -35,11 +35,26 @@ class ConfigUpdate(BaseModel):
 
 
 class RunRequest(BaseModel):
+    # P2P context
     invoice_id: str | None = None
     exception_id: str | None = None
     message_id: str | None = None
     supplier_id: str | None = None
     request_id: str | None = None
+    # Procurement context
+    event_id: str | None = None
+    draft_id: str | None = None
+    category: str | None = None
+    budget: float | None = None
+    title: str | None = None
+    contract_type: str | None = None
+    value_usd: float | None = None
+    term_months: int | None = None
+    supplier_name: str | None = None
+    requirements: str | None = None
+    compliance_rules: list[str] | None = None
+    # Input attachments the agent should read
+    attachment_ids: list[str] | None = None
 
 
 @router.get("")
@@ -90,8 +105,8 @@ def fleet_status(db: Session = Depends(get_db), _: User = Depends(get_current_us
 
 
 @router.get("/skills")
-def skills(_: User = Depends(get_current_user)) -> list[dict]:
-    catalog = skills_catalog()
+def skills(_: User = Depends(get_current_user), suite: str | None = None) -> list[dict]:
+    catalog = skills_catalog(suite)
     for entry in catalog:
         entry["used_by_agents"] = [
             agent.name for agent in list_agents() if entry["name"] in (agent.skills or [])
@@ -200,11 +215,22 @@ def run_agent(
 
     context = payload.model_dump(exclude_none=True)
     result = agent.run(db, context, trigger="manual", triggered_by=user.full_name)
+    db.flush()
+
+    from ..models import Artifact
+    from .procurement import artifact_out
+
+    produced = db.execute(
+        select(Artifact).where(Artifact.execution_id == result.execution.id)
+        .order_by(Artifact.created_at.asc())
+    ).scalars().all()
     db.commit()
     return {
         "execution": execution_out(result.execution, detail=True),
         "checkpoints": [human_task_out(t, detail=True) for t in result.tasks],
         "auto_executed": result.auto_executed,
+        "artifacts": [artifact_out(a) for a in produced],
+        "inputs_used": context.get("attachment_ids") or [],
     }
 
 
