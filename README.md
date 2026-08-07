@@ -16,6 +16,11 @@ server. One command, one port, a seeded demo dataset that tells a story.
 # → http://localhost:8000
 ```
 
+📘 **[RUNNING.md](RUNNING.md)** — prerequisites, every launch path, configuration
+reference and troubleshooting.
+📗 **[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)** — a 15-minute client walkthrough.
+📕 **[docs/HITL.md](docs/HITL.md)** — how the human-in-the-loop guarantees are enforced.
+
 ---
 
 ## The controlling idea: agents cannot act

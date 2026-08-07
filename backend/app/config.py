@@ -35,7 +35,10 @@ class Settings(BaseSettings):
     llm_provider: str = os.getenv("P2P_LLM_PROVIDER", "deterministic")
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
-    anthropic_model: str = "claude-opus-5"
+    # Narration is a short, well-constrained writing task over evidence the
+    # policy engine has already decided on — a mid-tier model is the right
+    # default. Override if you want a larger one.
+    anthropic_model: str = "claude-sonnet-5"
     openai_model: str = "gpt-4o"
     llm_timeout_seconds: float = 45.0
 
