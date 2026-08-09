@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: agentops-p2p-platform
+    runtime: docker
+    repo: https://github.com/rohitgit1/AgentOps-EnterpriseAgentic-P2P-Platform
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: P2P_LLM_PROVIDER
+        value: deterministic
+      - key: P2P_ENFORCE_HUMAN_IN_THE_LOOP
+        value: "true"
+      - key: P2P_SEED_ON_STARTUP
+        value: "true"
+      - key: P2P_CORS_ORIGINS
+        value: "*"
