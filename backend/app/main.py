@@ -126,11 +126,12 @@ else:
 
 def main() -> None:  # pragma: no cover - entry point
     import uvicorn
+    port = int(__import__("os").environ.get("PORT", "8000"))
 
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=bool(int(__import__("os").environ.get("P2P_RELOAD", "0"))),
     )
 
