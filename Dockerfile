@@ -22,4 +22,4 @@ WORKDIR /app/backend
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=4s --start-period=20s \
   CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health')"
-CMD ["python", "-m", "app.main"]
+CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
